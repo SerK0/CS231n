@@ -37,8 +37,9 @@ class LinearClassifier(object):
     # Run stochastic gradient descent to optimize W
     loss_history = []
     for it in range(num_iters):
-      X_batch = None
-      y_batch = None
+      indx = np.random.choice(num_train,batch_size,replace=False)
+      X_batch = X[indx]
+      y_batch = y[indx]
 
       #########################################################################
       # TODO:                                                                 #
@@ -65,7 +66,7 @@ class LinearClassifier(object):
       # TODO:                                                                 #
       # Update the weights using the gradient and the learning rate.          #
       #########################################################################
-      pass
+      self.W += -learning_rate*grad
       #########################################################################
       #                       END OF YOUR CODE                                #
       #########################################################################
@@ -89,18 +90,17 @@ class LinearClassifier(object):
       array of length N, and each element is an integer giving the predicted
       class.
     """
-    y_pred = np.zeros(X.shape[0])
+    y_pred = np.argmax(X.dot(self.W),axis=1)
     ###########################################################################
     # TODO:                                                                   #
     # Implement this method. Store the predicted labels in y_pred.            #
     ###########################################################################
-    pass
     ###########################################################################
     #                           END OF YOUR CODE                              #
     ###########################################################################
     return y_pred
   
-  def loss(self, X_batch, y_batch, reg):
+  def loss(self, X, y, reg):
     """
     Compute the loss function and its derivative. 
     Subclasses will override this.
@@ -114,8 +114,28 @@ class LinearClassifier(object):
     Returns: A tuple containing:
     - loss as a single float
     - gradient with respect to self.W; an array of the same shape as W
+
     """
-    pass
+
+    loss = 0.0
+    dW = np.zeros(self.W.shape)  # initialize the gradient as zero
+    scores = X.dot(self.W)
+    num_train = X.shape[0]
+    res = scores - scores[np.arange(scores.shape[0]), y].reshape(-1, 1) + 1
+    res[np.arange(scores.shape[0]), y] = 0
+    res = np.maximum(res, 0)
+    loss += np.sum(res)
+
+    res[res > 0] = 1
+    res[np.arange(scores.shape[0]), y] = -np.sum(res, axis=1)
+
+    dW = X.T.dot(res)
+
+    loss /= num_train
+    loss += reg * np.sum(W * W)
+    dW /= num_train
+    dW += 2 * reg * W
+    return loss, dW
 
 
 class LinearSVM(LinearClassifier):
