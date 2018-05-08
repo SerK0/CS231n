@@ -69,7 +69,70 @@ class TwoLayerNet(object):
     N, D = X.shape
 
     # Compute the forward pass
-    scores = None
+    #scores = np.hstack([np.maximum(0,np.hstack([X,np.ones((N,1))]).dot(np.vstack([W1,b1]))),np.ones((N,1))]).dot(np.vstack([W2,b2]))
+    #scores = np.maximum(0,X.dot(W1) +b1).dot(W2) + b2
+    XprW1 = X.dot(W1)
+    h1 = XprW1+b1
+    relu = np.maximum(0,h1)
+    reluprW2 = relu.dot(W2)
+    scores = reluprW2 + b2
+
+    ssum = np.sum(np.exp(scores), axis=1)
+
+    prob = np.exp(scores) / ssum.reshape(ssum.shape[0],1)
+    Li = -np.log(prob[np.arange(prob.shape[0]), y])
+    f = np.sum(Li)/N + reg*np.sum(W1*W1)+reg*np.sum(W2*W2)
+    loss = f
+    # If the targets are not given then jump out, we're done
+    if y is None:
+      return scores
+
+    # backprop f
+    Li = np.full(Li.shape,1.0/N)
+    #print('df_log',Li)
+    #print('___________________')
+    # backprop Li
+    dprob = Li.dot(np.diag(-(1.0 / prob[np.arange(prob.shape[0]), y])))
+    #print('dprob',dprob)
+    #print('___________________')
+    # back prob
+    dscores = -prob*prob[np.arange(prob.shape[0]), y].reshape(-1,1)
+    dscores[np.arange(prob.shape[0]), y] = prob[np.arange(prob.shape[0]), y]*(1-prob[np.arange(prob.shape[0]), y])
+    dscores = dscores * dprob.reshape(-1,1)
+    #print('dscores', dscores)
+    #print(np.ones(reluprW2.shape))
+    #print('___________________')
+    # backprop scores
+    dreluprW2 = dscores.T.dot(np.diag(np.ones(scores.shape[0])))
+    db2 = np.diag(dscores.T.dot(np.ones(scores.shape)))
+    #print('___________________')
+    #backprop reluprW2
+    dW2 = dreluprW2.dot(relu)
+    #print('W2', W2.shape)
+    #print('dreluprW2', dreluprW2.shape)
+    drelu = dreluprW2.T.dot(W2.T)
+    #print('dW2', dW2)
+    #print('drelu', drelu)
+    #print('___________________')
+    # backprop relu
+    dh1 = np.zeros(h1.shape)
+    dh1[h1>0] = 1
+    dh1 = drelu*dh1
+    #print(dh1)
+    # back h1
+    dXprW1 = dh1.T.dot(np.diag(np.ones(h1.shape[0])))
+    db1 = np.diag(dh1.T.dot(np.ones(h1.shape)))
+    #print(dXprW1)
+    #print(XprW1.shape,dXprW1.shape)
+    # back XprW1
+    dW1 = dXprW1.dot(X)
+
+
+
+
+
+
+
     #############################################################################
     # TODO: Perform the forward pass, computing the class scores for the input. #
     # Store the result in the scores variable, which should be an array of      #
@@ -80,12 +143,10 @@ class TwoLayerNet(object):
     #                              END OF YOUR CODE                             #
     #############################################################################
     
-    # If the targets are not given then jump out, we're done
-    if y is None:
-      return scores
+
 
     # Compute the loss
-    loss = None
+
     #############################################################################
     # TODO: Finish the forward pass, and compute the loss. This should include  #
     # both the data loss and L2 regularization for W1 and W2. Store the result  #
@@ -99,6 +160,10 @@ class TwoLayerNet(object):
 
     # Backward pass: compute gradients
     grads = {}
+    grads['W1'] = dW1.T + 2*reg*W1
+    grads['b1'] = db1
+    grads['W2'] = dW2.T + 2*reg*W2
+    grads['b2'] = db2
     #############################################################################
     # TODO: Compute the backward pass, computing the derivatives of the weights #
     # and biases. Store the results in the grads dictionary. For example,       #
@@ -141,8 +206,9 @@ class TwoLayerNet(object):
     val_acc_history = []
 
     for it in range(num_iters):
-      X_batch = None
-      y_batch = None
+      indx = np.random.choice(num_train, batch_size)
+      X_batch = X[indx]
+      y_batch = y[indx]
 
       #########################################################################
       # TODO: Create a random minibatch of training data and labels, storing  #
@@ -163,7 +229,10 @@ class TwoLayerNet(object):
       # using stochastic gradient descent. You'll need to use the gradients   #
       # stored in the grads dictionary defined above.                         #
       #########################################################################
-      pass
+      self.params['W1'] += -learning_rate * grads['W1']
+      self.params['b1'] += -learning_rate * grads['b1']
+      self.params['W2'] += -learning_rate * grads['W2']
+      self.params['b2'] += -learning_rate * grads['b2']
       #########################################################################
       #                             END OF YOUR CODE                          #
       #########################################################################
@@ -203,7 +272,21 @@ class TwoLayerNet(object):
       the elements of X. For all i, y_pred[i] = c means that X[i] is predicted
       to have class c, where 0 <= c < C.
     """
-    y_pred = None
+    W1, b1 = self.params['W1'], self.params['b1']
+    W2, b2 = self.params['W2'], self.params['b2']
+    N, D = X.shape
+
+    XprW1 = X.dot(W1)
+    h1 = XprW1 + b1
+    relu = np.maximum(0, h1)
+    reluprW2 = relu.dot(W2)
+    scores = reluprW2 + b2
+
+    ssum = np.sum(np.exp(scores), axis=1)
+
+    prob = np.exp(scores) / ssum.reshape(ssum.shape[0], 1)
+
+    y_pred = np.argmax(prob,axis=1)
 
     ###########################################################################
     # TODO: Implement this function; it should be VERY simple!                #
