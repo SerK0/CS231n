@@ -67,13 +67,13 @@ class TwoLayerNet(object):
     W1, b1 = self.params['W1'], self.params['b1']
     W2, b2 = self.params['W2'], self.params['b2']
     N, D = X.shape
-
     # Compute the forward pass
     #scores = np.hstack([np.maximum(0,np.hstack([X,np.ones((N,1))]).dot(np.vstack([W1,b1]))),np.ones((N,1))]).dot(np.vstack([W2,b2]))
     #scores = np.maximum(0,X.dot(W1) +b1).dot(W2) + b2
     XprW1 = X.dot(W1)
     h1 = XprW1+b1
     relu = np.maximum(0,h1)
+
     reluprW2 = relu.dot(W2)
     scores = reluprW2 + b2
 
