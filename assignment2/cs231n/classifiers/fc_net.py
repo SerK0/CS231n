@@ -6,6 +6,29 @@ from cs231n.layers import *
 from cs231n.layer_utils import *
 
 
+def affine_batch_relu_forward(x, w, b, gamma, beta,bn_param,norm):
+    out, fc_cache = affine_forward(x, w, b)
+    if norm =='batchnorm':
+        out, b_cache = batchnorm_forward(out, gamma, beta,bn_param)
+    if norm =='layernorm':
+        out, b_cache = layernorm_forward(out, gamma, beta, bn_param)
+    out, relu_cache = relu_forward(out)
+    cache = (fc_cache, b_cache, relu_cache)
+    return out, cache
+
+
+def affine_batch_relu_backward(dout, cache,norm):
+    fc_cache, b_cache, relu_cache = cache
+    dout = relu_backward(dout, relu_cache)
+    if norm == 'batchnorm':
+        dout, dgamma, dbeta = batchnorm_backward_alt(dout, b_cache)
+    if norm == 'layernorm':
+        dout, dgamma, dbeta = layernorm_backward(dout, b_cache)
+    dx, dw, db = affine_backward(dout, fc_cache)
+    return dx, dw, db, dgamma, dbeta
+
+
+
 class TwoLayerNet(object):
     """
     A two-layer fully-connected neural network with ReLU nonlinearity and
@@ -155,6 +178,10 @@ class FullyConnectedNet(object):
         for i in range(len(dims)-1):
             self.params['W'+str(i+1)] = np.random.normal(0, weight_scale, size=(dims[i], dims[i+1]))
             self.params['b'+str(i+1)] = np.zeros(dims[i+1])
+        if self.normalization!=None:
+            for i in range(len(dims) - 2):
+                self.params['gamma' + str(i + 1)] = np.ones(dims[i + 1])
+                self.params['beta' + str(i + 1)] = np.zeros(dims[i + 1])
         ############################################################################
         # TODO: Initialize the parameters of the network, storing all values in    #
         # the self.params dictionary. Store weights and biases for the first layer #
@@ -171,7 +198,6 @@ class FullyConnectedNet(object):
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
-
         # When using dropout we need to pass a dropout_param dictionary to each
         # dropout layer so that the layer knows the dropout probability and the mode
         # (train / test). You can pass the same dropout_param to each dropout layer.
@@ -196,7 +222,6 @@ class FullyConnectedNet(object):
         for k, v in self.params.items():
             self.params[k] = v.astype(dtype)
 
-
     def loss(self, X, y=None):
         """
         Compute loss and gradient for the fully-connected net.
@@ -205,7 +230,6 @@ class FullyConnectedNet(object):
         """
         X = X.astype(self.dtype)
         mode = 'test' if y is None else 'train'
-
         # Set train/test mode for batchnorm params and dropout param since they
         # behave differently during training and testing.
         if self.use_dropout:
@@ -213,10 +237,18 @@ class FullyConnectedNet(object):
         if self.normalization=='batchnorm':
             for bn_param in self.bn_params:
                 bn_param['mode'] = mode
+
         out = {0:X}
         cache = {}
         for i in range(self.num_layers-1):
-            out[i+1], cache[i+1] = affine_relu_forward(out[i], self.params['W'+str(i+1)], self.params['b'+str(i+1)])
+            if self.normalization == None:
+                out[i+1], cache[i+1] = affine_relu_forward(out[i], self.params['W'+str(i+1)], self.params['b'+str(i+1)])
+
+
+            if self.normalization != None:
+                out[i + 1], cache[i + 1] = affine_batch_relu_forward(out[i], self.params['W' + str(i + 1)],
+                                                           self.params['b' + str(i + 1)],self.params['gamma' + str(i + 1)],self.params['beta' + str(i + 1)],self.bn_params[i],self.normalization)
+
 
         out[self.num_layers], cache[self.num_layers] = affine_forward(out[self.num_layers-1], self.params['W' + str(self.num_layers)],self.params['b' + str(self.num_layers)])
         scores = out[self.num_layers]
@@ -252,6 +284,13 @@ class FullyConnectedNet(object):
                 dout, grads['W' + str(i)], grads['b' + str(i)] = affine_backward(dout, cache[i])
                 grads['W' + str(i)] = grads['W' + str(i)] + self.reg * self.params['W' + str(i)]
                 continue
-            dout, grads['W'+str(i)], grads['b'+str(i)] = affine_relu_backward(dout, cache[i])
-            grads['W' + str(i)] = grads['W' + str(i)] + self.reg*self.params['W' + str(i)]
+            if self.normalization == None:
+                dout, grads['W'+str(i)], grads['b'+str(i)] = affine_relu_backward(dout, cache[i])
+                grads['W' + str(i)] = grads['W' + str(i)] + self.reg*self.params['W' + str(i)]
+
+            if self.normalization != None:
+                dout, grads['W'+str(i)], grads['b'+str(i)],grads['gamma'+str(i)],grads['beta'+str(i)] = affine_batch_relu_backward(dout, cache[i],self.normalization)
+                grads['W' + str(i)] = grads['W' + str(i)] + self.reg*self.params['W' + str(i)]
+
+
         return loss, grads
